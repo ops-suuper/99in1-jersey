@@ -80,4 +80,107 @@ export default function Home() {
     <main className="min-h-screen">
       <nav className="mx-auto max-w-6xl px-4 py-5 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className
+          <div className="h-9 w-9 rounded-xl border grid place-items-center">
+            <span className="font-black">99</span>
+          </div>
+          <div>
+            <div className="font-semibold tracking-wide leading-tight">99in1</div>
+            <div className="text-xs opacity-60 -mt-0.5">Counter-Strike 2</div>
+          </div>
+        </div>
+        <div className="hidden md:flex items-center gap-3">
+          <a className="px-3 py-1.5 rounded-full border text-sm" href="#how">How it works</a>
+          <a className="px-3 py-1.5 rounded-full border text-sm" href="#team">Team</a>
+          <a className="px-3 py-1.5 rounded-full border text-sm" href="#faq">FAQ</a>
+          <a className="px-4 py-2 rounded-xl border text-sm font-semibold" href="#jersey">Place your logo</a>
+        </div>
+      </nav>
+
+      <header className="mx-auto max-w-6xl px-4 pt-2 pb-8">
+        <div className="p-6 border rounded-2xl">
+          <div className="flex flex-col md:flex-row md:items-center gap-6">
+            <div className="flex-1">
+              <h1 className="text-2xl md:text-4xl font-extrabold leading-tight">
+                Fill the Jersey — <span>99 spots each side</span>
+              </h1>
+              <p className="mt-3 opacity-75">
+                Drop your logo anywhere. Resize/rotate within your tier and it goes live instantly after payment.
+                We’ll freeze the design before our November 2025 LAN and print the jersey we wear on stage.
+              </p>
+              <div className="mt-4 flex gap-2">
+                <a href="#jersey" className="px-4 py-2 rounded-xl border font-semibold">Place your logo</a>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button className={`px-3 py-1.5 rounded-full border text-sm ${side==='front' ? 'font-semibold' : ''}`} onClick={()=>setSide('front')}>Front</button>
+              <button className={`px-3 py-1.5 rounded-full border text-sm ${side==='back' ? 'font-semibold' : ''}`} onClick={()=>setSide('back')}>Back</button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <section id="jersey" className="mx-auto max-w-6xl px-4 pb-12">
+        <div className="grid md:grid-cols-[1.2fr_.8fr] gap-6 items-start">
+          <div className="p-4 border rounded-2xl">
+            <div ref={wrapRef}>
+              <JerseyCanvas
+                side={side}
+                size={size}
+                uploaded={uploaded ? { url: uploaded.url } : null}
+                position={pos}
+                onPosition={(x,y)=> setPos({ x, y })}
+                onUserTransform={(w, rot)=> { setUserW(w); setUserRotation(rot); }}
+                placements={placements}
+                width={containerW}
+              />
+            </div>
+          </div>
+
+          <div className="p-6 border rounded-2xl space-y-6">
+            <div>
+              <div className="text-lg font-semibold">Choose your tier</div>
+              <p className="text-sm opacity-70 mt-1">Higher tiers allow larger logos.</p>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <button onClick={()=>setSize('small')}
+                        className={`px-4 py-2 rounded-xl border text-sm ${size==='small' ? 'font-semibold' : ''}`}>$5 • Small</button>
+                <button onClick={()=>setSize('medium')}
+                        className={`px-4 py-2 rounded-xl border text-sm ${size==='medium' ? 'font-semibold' : ''}`}>$10 • Medium</button>
+                <button onClick={()=>setSize('large')}
+                        className={`px-4 py-2 rounded-xl border text-sm ${size==='large' ? 'font-semibold' : ''}`}>$20 • Large</button>
+              </div>
+            </div>
+
+            <div>
+              <div className="text-lg font-semibold">Upload your logo</div>
+              <p className="text-sm opacity-70 mt-1">PNG or SVG up to 1MB. Drag anywhere on the jersey. Use handles to resize/rotate.</p>
+              <div className="mt-3">
+                <Uploader onUploaded={(r)=> setUploaded(r)} />
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={startCheckout}
+                disabled={busy || !uploaded || userW == null}
+                className={`px-4 py-2 rounded-xl border font-semibold w-full ${busy ? 'opacity-70 cursor-not-allowed' : ''}`}
+              >
+                {busy ? 'Working…' : 'Confirm & Pay'}
+              </button>
+              <button
+                onClick={() => { setUploaded(null); setUserW(null); setUserRotation(0); }}
+                className="px-4 py-2 rounded-xl border"
+              >
+                Reset
+              </button>
+            </div>
+
+            <div className="text-xs opacity-70">
+              By placing your logo you agree it’s safe-for-work and you have rights to use it.
+              We reserve the right to remove offensive imagery.
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  );
+}

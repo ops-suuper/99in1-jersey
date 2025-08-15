@@ -13,6 +13,7 @@ export default function Home() {
   const [uploaded, setUploaded] = useState<{url:string; public_id:string} | null>(null);
   const [pos, setPos] = useState({ x: 0.4, y: 0.4 }); // normalized
   const [containerW, setContainerW] = useState(900);
+  const [busy, setBusy] = useState(false);
 
   const { data } = useSWR(`/api/placements?side=${side}`, fetcher, { refreshInterval: 3000 });
   const placements = data?.items || [];
@@ -29,32 +30,61 @@ export default function Home() {
 
   async function startCheckout() {
     if (!uploaded) { alert('Upload a logo first'); return; }
+    if (busy) return;
+    setBusy(true);
 
-    const create = await fetch('/api/create-placement', {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify({
-        side,
-        size,
-        x: pos.x,
-        y: pos.y,
-        image_url: uploaded.url,
-        public_id: uploaded.public_id
-      })
-    }).then(r => r.json());
+    try {
+      // 1) Create pending placement in DB
+      const createRes = await fetch('/api/create-placement', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify({
+          side,
+          size,
+          x: pos.x,
+          y: pos.y,
+          image_url: uploaded.url,
+          public_id: uploaded.public_id
+        })
+      });
 
-    if (!create.placement_id) {
-      alert('Could not create placement'); return;
+      const create = await createRes.json();
+      console.log('create-placement response:', create);
+
+      if (!createRes.ok) {
+        alert(`Create placement failed: ${create?.error || createRes.statusText}`);
+        return;
+      }
+      if (!create.placement_id) {
+        alert('Create placement did not return placement_id');
+        return;
+      }
+
+      // 2) Create Stripe Checkout Session and redirect
+      const checkoutRes = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify({ placement_id: create.placement_id, size })
+      });
+      const checkout = await checkoutRes.json();
+      console.log('checkout response:', checkout);
+
+      if (!checkoutRes.ok) {
+        alert(`Checkout failed: ${checkout?.error || checkoutRes.statusText}`);
+        return;
+      }
+      if (!checkout.url) {
+        alert('Checkout did not return a URL. Check Stripe price IDs and NEXT_PUBLIC_APP_URL.');
+        return;
+      }
+
+      window.location.href = checkout.url;
+    } catch (err: any) {
+      console.error(err);
+      alert(`Something went wrong: ${err?.message || err}`);
+    } finally {
+      setBusy(false);
     }
-
-    const checkout = await fetch('/api/checkout', {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify({ placement_id: create.placement_id, size })
-    }).then(r => r.json());
-
-    if (checkout.url) window.location.href = checkout.url;
-    else alert('Checkout failed');
   }
 
   return (
@@ -79,8 +109,9 @@ export default function Home() {
           <button onClick={()=>setSize('large')} style={btn(size==='large')}>$20 — Large</button>
 
           <Uploader onUploaded={(r)=> setUploaded(r)} />
-          <button onClick={startCheckout} style={{ ...btn(false), background:'#F2C94C', color:'#2E2142' }}>
-            Confirm & Pay
+          <button onClick={startCheckout} disabled={busy}
+                  style={{ ...btn(false), background: busy ? '#b9a456' : '#F2C94C', color:'#2E2142' }}>
+            {busy ? 'Working…' : 'Confirm & Pay'}
           </button>
         </div>
 
@@ -95,15 +126,6 @@ export default function Home() {
             width={containerW}
           />
         </div>
-
-        <section style={{ marginTop: 30, color:'#EADDA6' }}>
-          <h3 style={{ color:'#F2C94C' }}>How it works</h3>
-          <ol>
-            <li>Upload your logo (PNG or SVG)</li>
-            <li>Pick front or back, choose a size, and drag to place</li>
-            <li>Pay securely with Stripe — your logo appears live immediately 🎉</li>
-          </ol>
-        </section>
       </div>
     </div>
   );

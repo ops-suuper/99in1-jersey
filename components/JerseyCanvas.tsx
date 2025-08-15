@@ -1,26 +1,26 @@
 import { useEffect, useRef, useState } from 'react';
 import { Stage, Layer, Image as KImage, Transformer } from 'react-konva';
 import { useHtmlImage } from '../lib/useHtmlImage';
-import { Size, SIZE_CAP, MIN_SCALE, MAX_SCALE } from '../lib/schema';
+import { Size, LONG_SIDE_CAP, MIN_SCALE, MAX_SCALE, clamp } from '../lib/schema';
 
 type Placement = {
   image_url: string;
-  x: number;
-  y: number;
-  w: number;           // normalized width fraction (0..1)
+  x: number;           // 0..1
+  y: number;           // 0..1
+  w: number;           // width fraction 0..1 (long side on canvas)
   z_index: number;
-  rotation?: number;   // degrees
+  rotation?: number;   // deg
 };
 
 type P = {
   side: 'front'|'back';
   size: Size;
-  uploaded?: { url: string } | null;             // user’s current logo (not yet paid)
-  position: { x: number; y: number };           // normalized 0..1
+  uploaded?: { url: string } | null;
+  position: { x: number; y: number };    // 0..1
   onPosition: (x: number, y: number) => void;
-  onUserTransform?: (w: number, rotation: number) => void; // notify parent
-  placements: Placement[];                       // paid logos
-  width: number;                                 // container width (px)
+  onUserTransform?: (w: number, rotation: number) => void; // normalized width + rotation
+  placements: Placement[];
+  width: number; // px
 };
 
 function PlacementImage({ src, x, y, w, rotation = 0 }: { src: string; x: number; y: number; w: number; rotation?: number }) {
@@ -33,37 +33,37 @@ export default function JerseyCanvas(props: P) {
   const { side, size, uploaded, position, onPosition, onUserTransform, placements, width } = props;
   const jerseySrc = side === 'front' ? '/jersey-front.svg' : '/jersey-back.svg';
 
-  // Stage size based on jersey aspect 2000x2400
   const stageW = Math.min(width, 1000);
   const stageH = stageW * (2400 / 2000);
 
-  // User image (unpaid, currently editing)
-  const userImg = useHtmlImage(uploaded?.url ?? null);
-
-  // User transform state (normalized width & rotation)
-  const cap = SIZE_CAP[size];
-  const minW = cap * MIN_SCALE;
-  const maxW = cap * MAX_SCALE;
-
-  // we store user's working width as a fraction (0..1 of stage width)
-  const [userW, setUserW] = useState<number | null>(null);
-  const [userRotation, setUserRotation] = useState<number>(0);
-
-  // init default size when image loads or tier changes
-  useEffect(() => {
-    if (userImg && (userW == null || userW > maxW || userW < minW)) {
-      const startW = cap * 0.8; // default 80% of cap
-      setUserW(Math.max(minW, Math.min(maxW, startW)));
-      onUserTransform?.(Math.max(minW, Math.min(maxW, startW)), 0);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userImg, cap, minW, maxW]);
-
-  // selection refs
-  const userNodeRef = useRef<any>(null);
-  const trRef = useRef<any>(null);
+  // Base jersey as HTML <img> underlay for stability
   const [imgLoaded, setImgLoaded] = useState(false);
 
+  // User image
+  const userImg = useHtmlImage(uploaded?.url ?? null);
+  const userNodeRef = useRef<any>(null);
+  const trRef = useRef<any>(null);
+
+  // Tier caps (width fraction)
+  const cap = LONG_SIDE_CAP[size];
+  const minWfrac = cap * MIN_SCALE;
+  const maxWfrac = cap * MAX_SCALE;
+
+  // Working normalized width + rotation for the user logo
+  const [userWfrac, setUserWfrac] = useState<number | null>(null);
+  const [userRotation, setUserRotation] = useState<number>(0);
+
+  // When image loads or tier changes, auto-fit to cap (keep ratio)
+  useEffect(() => {
+    if (!userImg) return;
+    // start around 80% of cap
+    const start = clamp(cap * 0.8, minWfrac, maxWfrac);
+    setUserWfrac(start);
+    onUserTransform?.(start, 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userImg, cap, minWfrac, maxWfrac]);
+
+  // Attach transformer to the user node when available
   useEffect(() => {
     if (trRef.current && userNodeRef.current) {
       trRef.current.nodes([userNodeRef.current]);
@@ -72,9 +72,8 @@ export default function JerseyCanvas(props: P) {
   }, [userImg, userNodeRef.current, trRef.current]);
 
   function clampUserWidthPx(nextPx: number) {
-    const nextFrac = nextPx / stageW;
-    const clamped = Math.max(minW, Math.min(maxW, nextFrac));
-    return clamped * stageW;
+    const frac = clamp(nextPx / stageW, minWfrac, maxWfrac);
+    return frac * stageW;
   }
 
   function handleDrag(e: any) {
@@ -83,33 +82,41 @@ export default function JerseyCanvas(props: P) {
     onPosition(xPx / stageW, yPx / stageH);
   }
 
-  function onTransform(e: any) {
+  // Force uniform scaling (aspect preserved) & clamp to tier
+  function onTransform() {
     const node = userNodeRef.current;
     if (!node) return;
 
-    // Konva uses scale; convert to width then reset scale to 1 to keep math simple
-    const scaledW = node.width() * node.scaleX();
-    const clampedW = clampUserWidthPx(scaledW);
-    node.width(clampedW);
+    // Use a uniform scale: take the max of |scaleX| and |scaleY|
+    const s = Math.max(Math.abs(node.scaleX()), Math.abs(node.scaleY()));
+
+    // Proposed new width in px based on this uniform scale
+    const nextWidthPx = node.width() * s;
+
+    // Clamp to tier limits in px
+    const clampedWidthPx = clampUserWidthPx(nextWidthPx);
+
+    // Reset the node to a "baked" width and neutral scale
+    // Height will follow the image aspect automatically
+    node.width(clampedWidthPx);
     node.scaleX(1);
     node.scaleY(1);
 
-    // Rotation
+    // Save normalized width + rotation
+    const wFrac = clampedWidthPx / stageW;
+    setUserWfrac(wFrac);
     const rot = node.rotation();
     setUserRotation(rot);
-
-    // Save normalized width
-    const wFrac = clampedW / stageW;
-    setUserW(wFrac);
     onUserTransform?.(wFrac, rot);
+
+    // Redraw
+    node.getLayer()?.batchDraw();
   }
 
-  // current preview width in px
-  const previewWpx = (userW ?? (cap * 0.8)) * stageW;
+  const previewWpx = (userWfrac ?? (cap * 0.8)) * stageW;
 
   return (
     <div style={{ position: 'relative', width: '100%', maxWidth: stageW }}>
-      {/* Base jersey as HTML image */}
       <img
         src={jerseySrc}
         alt={`99in1 jersey ${side}`}
@@ -121,7 +128,6 @@ export default function JerseyCanvas(props: P) {
         <div style={{ position: 'absolute', inset: 0 }}>
           <Stage width={stageW} height={stageH}>
             <Layer>
-              {/* Paid placements */}
               {[...placements].sort((a,b)=>a.z_index-b.z_index).map((p,i)=>(
                 <PlacementImage
                   key={i}
@@ -133,7 +139,6 @@ export default function JerseyCanvas(props: P) {
                 />
               ))}
 
-              {/* User’s editable image */}
               {userImg && (
                 <>
                   <KImage
@@ -141,7 +146,7 @@ export default function JerseyCanvas(props: P) {
                     image={userImg}
                     x={position.x * stageW}
                     y={position.y * stageH}
-                    width={previewWpx}
+                    width={previewWpx}   // set width only -> Konva preserves aspect
                     rotation={userRotation}
                     draggable
                     onDragMove={handleDrag}
@@ -152,15 +157,13 @@ export default function JerseyCanvas(props: P) {
                   <Transformer
                     ref={trRef}
                     rotateEnabled
+                    // Limit anchors to corners; we’ll enforce uniform scale in onTransform
                     enabledAnchors={['top-left','top-right','bottom-left','bottom-right']}
                     boundBoxFunc={(oldBox, newBox) => {
-                      // limit resize by min/max width in px
+                      // Enforce the tier clamp during rubber-band drawing:
                       const clampedW = clampUserWidthPx(newBox.width);
-                      return {
-                        ...newBox,
-                        width: clampedW,
-                        height: newBox.height // keep aspect Konva will maintain ratios visually
-                      };
+                      // Keep aspect visually: height follows from image ratio handled by Konva when we set width
+                      return { ...newBox, width: clampedW };
                     }}
                   />
                 </>

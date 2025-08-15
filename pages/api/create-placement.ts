@@ -6,17 +6,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { side, size, x, y, w, image_url, public_id } = req.body || {};
+    const { side, size, x, y, w, rotation, image_url, public_id } = req.body || {};
     if (!['front', 'back'].includes(side)) return res.status(400).json({ error: 'bad side' });
     if (!['small', 'medium', 'large'].includes(size)) return res.status(400).json({ error: 'bad size' });
     if (typeof x !== 'number' || typeof y !== 'number') return res.status(400).json({ error: 'bad coords' });
     if (!image_url || !public_id) return res.status(400).json({ error: 'missing image' });
 
-    // Validate width: must be within [MIN_SCALE*cap, MAX_SCALE*cap]
+    // validate width within tier cap
     const cap = SIZE_CAP[size as Size];
     const minW = cap * MIN_SCALE;
     const maxW = cap * MAX_SCALE;
-    const chosenW = typeof w === 'number' ? Math.max(minW, Math.min(maxW, w)) : cap; // default to cap if missing
+    const chosenW = typeof w === 'number' ? Math.max(minW, Math.min(maxW, w)) : cap;
+
+    const rot = typeof rotation === 'number' ? rotation : 0;
 
     const z_index = (await getMaxZ(side)) + 1;
 
@@ -27,6 +29,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       x,
       y,
       w: chosenW,
+      rotation: rot,
       image_url,
       public_id,
       z_index,

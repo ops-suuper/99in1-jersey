@@ -1,6 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { stripe, PRICE_IDS } from '../../lib/stripe';
+import { stripe } from '../../lib/stripe';
 import { updatePlacement } from '../../lib/airtable';
+
+const SUB_PRICES: Record<'small'|'medium'|'large', string> = {
+  small: process.env.SUB_PRICE_SMALL!,
+  medium: process.env.SUB_PRICE_MEDIUM!,
+  large: process.env.SUB_PRICE_LARGE!
+};
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   console.log('[checkout] method=', req.method, 'url=', req.url);
@@ -14,14 +20,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!placement_id) return res.status(400).json({ error: 'missing placement_id' });
     if (!['small','medium','large'].includes(size)) return res.status(400).json({ error: 'bad size' });
 
-    const priceId = PRICE_IDS[size as 'small'|'medium'|'large'];
-    if (!priceId) return res.status(400).json({ error: `Missing Stripe price ID for size "${size}"` });
+    const priceId = SUB_PRICES[size as 'small'|'medium'|'large'];
+    if (!priceId) return res.status(400).json({ error: `Missing SUB price for size "${size}"` });
 
     const successBase = process.env.NEXT_PUBLIC_APP_URL;
     if (!successBase) return res.status(500).json({ error: 'NEXT_PUBLIC_APP_URL not set in env' });
 
     const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
+      mode: 'subscription',
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${successBase}/success?sid={CHECKOUT_SESSION_ID}`,
       cancel_url: `${successBase}/cancel`,
@@ -29,6 +35,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       metadata: { placement_id, size }
     });
 
+    // still store session id on our placement
     await updatePlacement(placement_id, { checkout_session_id: session.id });
     return res.status(200).json({ url: session.url });
   } catch (e: any) {

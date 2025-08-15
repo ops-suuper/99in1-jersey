@@ -1,0 +1,17 @@
+<svg width="2000" height="2400" viewBox="0 0 2000 2400" xmlns="http://www.w3.org/2000/svg">
+  <title>99in1 Jersey Front</title>
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2E2142"></stop>
+      <stop offset="100%" stop-color="#1E152B"></stop>
+    </linearGradient>
+  </defs>
+  <rect width="2000" height="2400" fill="#1E152B"></rect>
+  <!-- Body with sleeves -->
+  <path d="M280,260
+           L600,140 L820,180 L1180,180 L1400,140 L1720,260
+           L1860,640 L1620,700 L1620,2100
+           L380,2100 L380,700 L140,640 Z" fill="url(#body)" stroke="#F2C94C" stroke-width="20"></path>
+  <!-- Collar accent -->
+  <path d="M760,200 Q1000,120 1240,200" fill="none" stroke="#F2C94C" stroke-width="16"></path>
+</svg>

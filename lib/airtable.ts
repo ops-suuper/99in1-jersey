@@ -19,8 +19,8 @@ export async function listLivePlacements(side: 'front' | 'back') {
       .select({
         // truthy checkbox + exact side
         filterByFormula: `AND({live}, {side} = '${side}')`,
-        sort: [{ field: 'z_index', direction: 'asc' }],
-        pageSize: 200
+        sort: [{ field: 'z_index', direction: 'asc' }]
+        // no pageSize here; .all() will paginate with default 100
       })
       .all();
 

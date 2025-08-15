@@ -9,6 +9,9 @@ export const LONG_SIDE_CAP: Record<Size, number> = {
   large: 0.13   // 13%
 };
 
+// Back-compat alias so older files importing SIZE_CAP keep building
+export const SIZE_CAP = LONG_SIDE_CAP;
+
 export const MIN_SCALE = 0.4;  // 40% of cap
 export const MAX_SCALE = 1.0;  // 100% of cap
 

@@ -2,13 +2,16 @@
 export type Side = 'front' | 'back';
 export type Size = 'small' | 'medium' | 'large';
 
-// Max width (as a fraction of jersey width) per tier
-export const SIZE_CAP: Record<Size, number> = {
-  small: 0.05,   // 5% of jersey width
-  medium: 0.07,  // 7%
-  large: 0.10    // 10%
+// Max *long-side* (width on canvas) as a fraction of jersey width
+export const LONG_SIDE_CAP: Record<Size, number> = {
+  small: 0.06,  // 6%
+  medium: 0.09, // 9%
+  large: 0.13   // 13%
 };
 
-// Allow transforms within 40%–100% of the tier cap
-export const MIN_SCALE = 0.4;
-export const MAX_SCALE = 1.0;
+export const MIN_SCALE = 0.4;  // 40% of cap
+export const MAX_SCALE = 1.0;  // 100% of cap
+
+export function clamp(v: number, lo: number, hi: number) {
+  return Math.max(lo, Math.min(hi, v));
+}

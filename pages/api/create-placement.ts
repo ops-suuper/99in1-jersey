@@ -1,6 +1,7 @@
+// pages/api/create-placement.ts
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createPlacement, getMaxZ } from '../../lib/airtable';
-import { Size, SIZE_CAP, MIN_SCALE, MAX_SCALE } from '../../lib/schema';
+import { Size, LONG_SIDE_CAP, MIN_SCALE, MAX_SCALE } from '../../lib/schema';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -12,14 +13,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (typeof x !== 'number' || typeof y !== 'number') return res.status(400).json({ error: 'bad coords' });
     if (!image_url || !public_id) return res.status(400).json({ error: 'missing image' });
 
-    // validate width within tier cap
-    const cap = SIZE_CAP[size as Size];
+    // validate width within tier cap (long-side cap)
+    const cap = LONG_SIDE_CAP[size as Size];
     const minW = cap * MIN_SCALE;
     const maxW = cap * MAX_SCALE;
-    const chosenW = typeof w === 'number' ? Math.max(minW, Math.min(maxW, w)) : cap;
+    const chosenW = typeof w === 'number' ? Math.max(minW, Math.min(maxW, w)) : cap * 0.8;
 
     const rot = typeof rotation === 'number' ? rotation : 0;
-
     const z_index = (await getMaxZ(side)) + 1;
 
     const record = await createPlacement({

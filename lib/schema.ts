@@ -1,20 +1,14 @@
-// lib/schema.ts
-export type Side = 'front' | 'back';
-export type Size = 'small' | 'medium' | 'large';
+export enum Size {
+  Small = 'small',
+  Medium = 'medium',
+  Large = 'large',
+}
 
-// Max *long-side* (width on canvas) as a fraction of jersey width
-export const LONG_SIDE_CAP: Record<Size, number> = {
-  small: 0.06,  // 6%
-  medium: 0.09, // 9%
-  large: 0.13   // 13%
+export const SIZE_LIMITS: Record<Size, { maxWidth: number; maxHeight: number }> = {
+  [Size.Small]: { maxWidth: 150, maxHeight: 150 },
+  [Size.Medium]: { maxWidth: 300, maxHeight: 300 },
+  [Size.Large]: { maxWidth: 500, maxHeight: 500 },
 };
 
-// 🔹 Backwards-compat alias for old code
-export const SIZE_CAP = LONG_SIDE_CAP;
-
-export const MIN_SCALE = 0.4;  // 40% of cap
-export const MAX_SCALE = 1.0;  // 100% of cap
-
-export function clamp(v: number, lo: number, hi: number) {
-  return Math.max(lo, Math.min(hi, v));
-}
+export const MIN_SCALE = 0.1;
+export const MAX_SCALE = 3;

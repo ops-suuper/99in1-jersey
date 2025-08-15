@@ -2,7 +2,7 @@ import dynamic from 'next/dynamic';
 import { useEffect, useRef, useState } from 'react';
 import useSWR from 'swr';
 import Uploader from '../components/Uploader';
-import { Size, SIZE_CAP, MIN_SCALE, MAX_SCALE, clampScale } from '../lib/schema';
+import { Size } from '../lib/schema';
 
 const JerseyCanvas = dynamic(() => import('../components/JerseyCanvas'), { ssr: false });
 const fetcher = (url: string) => fetch(url).then(r => r.json());
@@ -10,18 +10,15 @@ const fetcher = (url: string) => fetch(url).then(r => r.json());
 export default function Home() {
   const [side, setSide] = useState<'front'|'back'>('front');
   const [size, setSize] = useState<Size>('small');
-  const [scale, setScale] = useState(0.8); // user control (40%–100% of cap). default 80% of cap
   const [uploaded, setUploaded] = useState<{url:string; public_id:string} | null>(null);
   const [pos, setPos] = useState({ x: 0.4, y: 0.4 }); // normalized
+  const [userW, setUserW] = useState<number | null>(null); // normalized width chosen by user
+  const [userRotation, setUserRotation] = useState<number>(0);
   const [containerW, setContainerW] = useState(900);
   const [busy, setBusy] = useState(false);
 
   const { data } = useSWR(`/api/placements?side=${side}`, fetcher, { refreshInterval: 3000 });
   const placements = data?.items || [];
-
-  // normalized width fraction for current tier
-  const cap = SIZE_CAP[size];
-  const chosenW = Math.max(cap * MIN_SCALE, Math.min(cap * MAX_SCALE, cap * clampScale(scale)));
 
   const wrapRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -33,18 +30,14 @@ export default function Home() {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // When tier changes, keep scale but clamp effective width to the new cap range
-  useEffect(() => {
-    setScale((s) => clampScale(s));
-  }, [size]);
-
   async function startCheckout() {
     if (!uploaded) { alert('Upload a logo first'); return; }
+    if (userW == null) { alert('Resize/confirm your logo once'); return; }
     if (busy) return;
     setBusy(true);
 
     try {
-      // 1) Create pending placement in DB with chosen width
+      // 1) Create pending placement in DB with chosen width & rotation
       const createRes = await fetch('/api/create-placement', {
         method: 'POST',
         headers: { 'Content-Type':'application/json' },
@@ -53,7 +46,8 @@ export default function Home() {
           size,
           x: pos.x,
           y: pos.y,
-          w: chosenW,                 // <-- send user-selected width fraction
+          w: userW,
+          rotation: userRotation,
           image_url: uploaded.url,
           public_id: uploaded.public_id
         })
@@ -102,7 +96,7 @@ export default function Home() {
         </header>
 
         <p style={{ color:'#EADDA6' }}>
-          Drop your logo anywhere on our kit. Choose a size ($5 / $10 / $20), adjust within your tier’s limit, pay, and it goes live instantly.
+          Upload your logo, drag to place, use the handles to resize/rotate (within your tier), then confirm & pay.
           We’ll freeze the design before our November 2025 LAN and print the jersey we wear on stage.
         </p>
 
@@ -123,25 +117,6 @@ export default function Home() {
           </button>
         </div>
 
-        {/* Size slider (40%–100% of the tier cap) */}
-        <div style={{ display:'flex', alignItems:'center', gap:12, margin:'8px 0 16px 0', flexWrap:'wrap' }}>
-          <label style={{ color:'#EADDA6' }}>
-            Logo size:
-            <input
-              type="range"
-              min={MIN_SCALE}
-              max={MAX_SCALE}
-              step={0.02}
-              value={scale}
-              onChange={(e)=> setScale(parseFloat(e.target.value))}
-              style={{ marginLeft: 10, verticalAlign:'middle' }}
-            />
-          </label>
-          <small style={{ color:'#EADDA6' }}>
-            {Math.round((chosenW / SIZE_CAP[size]) * 100)}% of {Math.round(SIZE_CAP[size]*100)}% cap
-          </small>
-        </div>
-
         <div ref={wrapRef}>
           <JerseyCanvas
             side={side}
@@ -149,15 +124,10 @@ export default function Home() {
             uploaded={uploaded ? { url: uploaded.url } : null}
             position={pos}
             onPosition={(x,y)=> setPos({ x, y })}
+            onUserTransform={(w, rot)=> { setUserW(w); setUserRotation(rot); }}
             placements={placements}
             width={containerW}
-            // JerseyCanvas doesn’t need the scale directly; we pass chosen width via uploaded preview below
           />
-        </div>
-
-        {/* Tiny note about limits */}
-        <div style={{ color:'#AFA0D5', marginTop:8 }}>
-          <small>Each tier has a maximum logo width: Small 5%, Medium 7%, Large 10% of the jersey width. Use the slider to fine-tune within your tier.</small>
         </div>
       </div>
     </div>

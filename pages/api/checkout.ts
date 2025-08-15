@@ -3,7 +3,11 @@ import { stripe, PRICE_IDS } from '../../lib/stripe';
 import { updatePlacement } from '../../lib/airtable';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  console.log('[checkout] method=', req.method, 'url=', req.url);
+
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed. Use POST /api/checkout' });
+  }
 
   try {
     const { placement_id, size } = req.body || {};
